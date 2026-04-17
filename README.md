@@ -3,9 +3,13 @@
 ![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14-4169E1?logo=postgresql&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)
+![AWS](https://img.shields.io/badge/AWS-EC2-FF9900?logo=amazonec2&logoColor=white)
+![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub_Actions-2088FF?logo=githubactions&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-API REST de gestion de inventario construida con .NET 8, Clean Architecture y PostgreSQL. Implementa autenticacion JWT, autorizacion por roles, carga masiva de productos, auditoria completa y despliegue con Docker.
+API REST de gestion de inventario construida con .NET 8, Clean Architecture y PostgreSQL. Implementa autenticacion JWT, autorizacion por roles, carga masiva de productos, auditoria completa y despliegue automatizado en AWS EC2.
+
+**API en produccion:** http://3.93.170.171/swagger
 
 > Prueba tecnica - Desarrollador Full Stack | Finanzauto S.A. BIC via ASISYA
 
@@ -23,6 +27,7 @@ API REST de gestion de inventario construida con .NET 8, Clean Architecture y Po
 - [Tests](#tests)
 - [SonarQube](#sonarqube)
 - [CI/CD](#cicd)
+- [Deploy en produccion](#deploy-en-produccion)
 - [Decisiones arquitectonicas](#decisiones-arquitectonicas)
 - [Escalamiento horizontal en AWS](#escalamiento-horizontal-en-aws)
 - [Autor](#autor)
@@ -461,6 +466,28 @@ Push to main ──> [Build & Test] ──> [Docker Push] ──> [Deploy to EC2
 | `CORS_ORIGINS` | Origenes permitidos (separados por coma) |
 
 > Ningun secreto se almacena en el repositorio. El pipeline los inyecta en tiempo de deploy.
+
+---
+
+## Deploy en produccion
+
+La API esta desplegada en AWS EC2 con CI/CD automatizado:
+
+| Recurso | URL |
+|---------|-----|
+| **Swagger UI** | http://3.93.170.171/swagger |
+| **Health Check** | http://3.93.170.171/health |
+| **API Base** | http://3.93.170.171/api/v1 |
+
+**Stack de produccion:**
+
+```
+Internet → Nginx (puerto 80) → StockNova API (puerto 8080) → PostgreSQL (interno)
+```
+
+- **EC2**: t3.micro, Ubuntu 22.04 (Free Tier)
+- **Docker Compose**: 3 contenedores (API + PostgreSQL + Nginx)
+- **Deploy automatico**: cada push a `main` ejecuta build → test → push imagen → deploy
 
 ---
 
