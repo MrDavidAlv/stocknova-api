@@ -1,0 +1,6 @@
+@StockNova.API_HostAddress = http://localhost:5230
+
+GET {{StockNova.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

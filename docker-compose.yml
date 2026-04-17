@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:14
+    container_name: stocknova-db
+    environment:
+      POSTGRES_DB: stocknova_db
+      POSTGRES_USER: stocknova
+      POSTGRES_PASSWORD: StockNova2026!
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stocknova -d stocknova_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stocknova-api
+    ports:
+      - "8080:8080"
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=stocknova_db;Username=stocknova;Password=StockNova2026!"
+      JwtSettings__SecretKey: "StockNova-SuperSecret-Key-2026-Must-Be-At-Least-32-Characters!"
+      JwtSettings__Issuer: "StockNova.API"
+      JwtSettings__Audience: "StockNova.Client"
+      ASPNETCORE_ENVIRONMENT: Production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
