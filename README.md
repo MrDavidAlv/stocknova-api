@@ -247,19 +247,30 @@ git clone https://github.com/MrDavidAlv/stocknova-api.git
 cd stocknova-api
 ```
 
-### 2. Crear la base de datos
+### 2. Configurar variables de entorno
+
+```bash
+cp .env.example .env
+# Editar .env con tus valores reales
+```
+
+> **Importante:** Nunca commitear el archivo `.env`. Solo `.env.example` (con valores placeholder) esta versionado.
+
+### 3. Crear la base de datos
 
 ```sql
 -- Conectar como superusuario
 sudo -u postgres psql
 
-CREATE USER stocknova WITH PASSWORD 'StockNova2026!';
+CREATE USER stocknova WITH PASSWORD '<TU_PASSWORD_SEGURA>';
 CREATE DATABASE stocknova_db OWNER stocknova;
 GRANT ALL PRIVILEGES ON DATABASE stocknova_db TO stocknova;
 \q
 ```
 
-### 3. Ejecutar la API
+> Usar la misma contraseña configurada en `POSTGRES_PASSWORD` del archivo `.env`.
+
+### 4. Ejecutar la API
 
 ```bash
 cd src/StockNova.API
@@ -271,13 +282,15 @@ Swagger UI disponible en: `https://localhost:5001/swagger`
 
 Las migraciones y datos semilla se ejecutan automaticamente al iniciar.
 
-### Usuarios pre-cargados
+### Usuarios seed (solo desarrollo)
 
-| Email | Password | Rol |
-|-------|----------|-----|
-| admin@stocknova.com | Admin123! | Admin |
-| manager@stocknova.com | Manager123! | Manager |
-| viewer@stocknova.com | Viewer123! | Viewer |
+| Email | Rol | Descripcion |
+|-------|-----|-------------|
+| admin@stocknova.com | Admin | Acceso total |
+| manager@stocknova.com | Manager | CRUD de productos |
+| viewer@stocknova.com | Viewer | Solo lectura |
+
+> Las credenciales de los usuarios seed se encuentran en el seeder del proyecto. En produccion, estos usuarios deben ser eliminados o sus contraseñas deben ser cambiadas inmediatamente despues del primer despliegue.
 
 ---
 
@@ -288,6 +301,15 @@ Las migraciones y datos semilla se ejecutan automaticamente al iniciar.
 - [Docker](https://docs.docker.com/get-docker/) 20+
 - [Docker Compose](https://docs.docker.com/compose/) v2+
 
+### Configurar variables de entorno
+
+```bash
+cp .env.example .env
+# Editar .env con valores seguros para cada variable
+```
+
+El archivo `.env.example` contiene todas las variables necesarias con valores placeholder. Nunca usar valores por defecto en produccion.
+
 ### Levantar todo el stack
 
 ```bash
@@ -295,7 +317,7 @@ docker compose up -d
 ```
 
 Esto levanta:
-- **PostgreSQL 14** en `localhost:5433`
+- **PostgreSQL 14** en `localhost:5433` (solo desarrollo)
 - **StockNova API** en `http://localhost:8080`
 
 ### Verificar que funciona
@@ -304,10 +326,10 @@ Esto levanta:
 # Health check
 curl http://localhost:8080/health
 
-# Login
+# Login (usar credenciales del seeder)
 curl -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@stocknova.com","password":"Admin123!"}'
+  -d '{"email":"admin@stocknova.com","password":"<PASSWORD>"}'
 ```
 
 ### Detener
@@ -374,29 +396,71 @@ docker run -d --name sonarqube -p 9000:9000 sonarqube:lts-community
 
 # 2. Crear proyecto y token en http://localhost:9000
 
-# 3. Ejecutar analisis
+# 3. Ejecutar analisis (reemplazar <TOKEN> con el token generado)
 dotnet sonarscanner begin \
   /k:"stocknova-api" \
   /d:sonar.host.url="http://localhost:9000" \
-  /d:sonar.token="TU_TOKEN"
+  /d:sonar.token="<TOKEN>"
 
 dotnet build --no-incremental
-dotnet sonarscanner end /d:sonar.token="TU_TOKEN"
+dotnet sonarscanner end /d:sonar.token="<TOKEN>"
 ```
+
+> El token de SonarQube es personal y no debe versionarse. Generarlo desde la interfaz web de SonarQube.
 
 ---
 
 ## CI/CD
 
-Pipeline de GitHub Actions (`.github/workflows/ci.yml`) que ejecuta:
+Pipeline de GitHub Actions (`.github/workflows/ci.yml`) con 3 jobs:
 
-1. **Build** - Restore + compilacion en modo Release
-2. **Unit Tests** - 30 tests con reporte de cobertura
-3. **Integration Tests** - 13 tests con PostgreSQL service container
-4. **Docker Build** - Validacion de que la imagen se construye correctamente
-5. **SonarQube** - Analisis de calidad de codigo
+```
+Push to main ──> [Build & Test] ──> [Docker Push] ──> [Deploy to EC2]
+                                     (ghcr.io)        (SSH + Docker Compose)
+```
 
-Se ejecuta en cada push a `main`/`develop` y en pull requests.
+### Job 1: Build & Test
+- Restore, compilacion en modo Release
+- Unit Tests (35 tests)
+- Integration Tests (13 tests) con PostgreSQL service container
+
+### Job 2: Docker Push (solo push a main)
+- Build de imagen Docker multi-stage
+- Push a GitHub Container Registry (`ghcr.io`)
+- Tags: `latest` + SHA del commit
+
+### Job 3: Deploy to EC2 (solo push a main)
+- Copia archivos de deploy via SCP
+- Crea `.env` en servidor desde GitHub Secrets
+- Pull de imagen y restart de servicios via SSH
+- Health check automatico post-deploy
+
+### Infraestructura de produccion
+
+| Componente | Tecnologia |
+|-----------|-----------|
+| Servidor | AWS EC2 (Ubuntu 22.04) |
+| Reverse Proxy | Nginx |
+| Contenedores | Docker Compose |
+| Registry | GitHub Container Registry (ghcr.io) |
+| Secretos | GitHub Secrets → `.env` en servidor |
+
+### GitHub Secrets requeridos
+
+| Secret | Descripcion |
+|--------|-------------|
+| `EC2_HOST` | IP publica de la instancia EC2 |
+| `EC2_SSH_KEY` | Clave privada SSH (.pem) |
+| `CR_PAT` | Personal Access Token con `write:packages` |
+| `POSTGRES_DB` | Nombre de la base de datos |
+| `POSTGRES_USER` | Usuario de PostgreSQL |
+| `POSTGRES_PASSWORD` | Contraseña de PostgreSQL |
+| `JWT_SECRET_KEY` | Clave secreta JWT (min 32 caracteres) |
+| `JWT_ISSUER` | Emisor del token JWT |
+| `JWT_AUDIENCE` | Audiencia del token JWT |
+| `CORS_ORIGINS` | Origenes permitidos (separados por coma) |
+
+> Ningun secreto se almacena en el repositorio. El pipeline los inyecta en tiempo de deploy.
 
 ---
 
