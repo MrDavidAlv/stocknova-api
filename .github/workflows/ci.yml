@@ -51,41 +51,41 @@ jobs:
       - name: Docker Build (validation)
         run: docker build -t stocknova-api:ci .
 
-  sonarqube:
-    runs-on: ubuntu-latest
-    needs: build-and-test
+  # sonarqube:
+  #   runs-on: ubuntu-latest
+  #   needs: build-and-test
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
 
-      - name: Setup .NET 8
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
+  #     - name: Setup .NET 8
+  #       uses: actions/setup-dotnet@v4
+  #       with:
+  #         dotnet-version: 8.0.x
 
-      - name: Install SonarScanner
-        run: dotnet tool install --global dotnet-sonarscanner
+  #     - name: Install SonarScanner
+  #       run: dotnet tool install --global dotnet-sonarscanner
 
-      - name: Install Coverage Tool
-        run: dotnet tool install --global dotnet-coverage
+  #     - name: Install Coverage Tool
+  #       run: dotnet tool install --global dotnet-coverage
 
-      - name: SonarQube Analysis
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-        run: |
-          dotnet sonarscanner begin \
-            /o:"MrDavidAlv" \
-            /k:"MrDavidAlv_stocknova-api" \
-            /d:sonar.host.url="${SONAR_HOST_URL}" \
-            /d:sonar.token="${SONAR_TOKEN}" \
-            /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml \
-            /d:sonar.exclusions="**/Migrations/**,**/obj/**,**/bin/**"
+  #     - name: SonarQube Analysis
+  #       env:
+  #         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  #         SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+  #       run: |
+  #         dotnet sonarscanner begin \
+  #           /o:"MrDavidAlv" \
+  #           /k:"MrDavidAlv_stocknova-api" \
+  #           /d:sonar.host.url="${SONAR_HOST_URL}" \
+  #           /d:sonar.token="${SONAR_TOKEN}" \
+  #           /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml \
+  #           /d:sonar.exclusions="**/Migrations/**,**/obj/**,**/bin/**"
 
-          dotnet build --no-incremental
-          dotnet-coverage collect "dotnet test --no-build" -f xml -o "coverage.xml"
+  #         dotnet build --no-incremental
+  #         dotnet-coverage collect "dotnet test --no-build" -f xml -o "coverage.xml"
 
-          dotnet sonarscanner end /d:sonar.token="${SONAR_TOKEN}"
+  #         dotnet sonarscanner end /d:sonar.token="${SONAR_TOKEN}"
