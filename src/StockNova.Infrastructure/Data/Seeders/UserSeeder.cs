@@ -8,6 +8,12 @@ namespace StockNova.Infrastructure.Data.Seeders;
 
 public static class UserSeeder
 {
+    // Default seed passwords — for development and testing only.
+    // In production, change these immediately after first deploy.
+    private const string DefaultAdminPassword = "Admin123!";
+    private const string DefaultManagerPassword = "Manager123!";
+    private const string DefaultViewerPassword = "Viewer123!";
+
     public static async Task SeedAsync(ApplicationDbContext context, ILogger logger)
     {
         if (await context.Users.AnyAsync())
@@ -15,13 +21,12 @@ public static class UserSeeder
             return;
         }
 
-        // BCrypt hash generated inline for seed data
         var users = new List<User>
         {
             new()
             {
                 Email = "admin@stocknova.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin123!"),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(DefaultAdminPassword),
                 FullName = "Admin StockNova",
                 Role = UserRole.Admin,
                 IsActive = true
@@ -29,7 +34,7 @@ public static class UserSeeder
             new()
             {
                 Email = "manager@stocknova.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Manager123!"),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(DefaultManagerPassword),
                 FullName = "Manager StockNova",
                 Role = UserRole.Manager,
                 IsActive = true
@@ -37,7 +42,7 @@ public static class UserSeeder
             new()
             {
                 Email = "viewer@stocknova.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Viewer123!"),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(DefaultViewerPassword),
                 FullName = "Viewer StockNova",
                 Role = UserRole.Viewer,
                 IsActive = true
@@ -46,6 +51,8 @@ public static class UserSeeder
 
         await context.Users.AddRangeAsync(users);
         await context.SaveChangesAsync();
-        logger.LogInformation("Seeded {Count} users", users.Count);
+
+        logger.LogInformation("Seeded {Count} default users", users.Count);
+        logger.LogWarning("Default seed users created with default passwords. Change them in production");
     }
 }
