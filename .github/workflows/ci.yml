@@ -78,7 +78,8 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         run: |
           dotnet sonarscanner begin \
-            /k:"stocknova-api" \
+            /o:"MrDavidAlv" \
+            /k:"MrDavidAlv_stocknova-api" \ 
             /d:sonar.host.url="${SONAR_HOST_URL}" \
             /d:sonar.token="${SONAR_TOKEN}" \
             /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml \
