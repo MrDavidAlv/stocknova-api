@@ -111,6 +111,86 @@ public class ProductService : IProductService
         return Result<int>.Success(request.Count);
     }
 
+    public async Task<Result<ImportResult>> ImportFromCsvAsync(Stream csvStream)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var products = new List<Product>();
+        var errors = new List<string>();
+        var lineNumber = 0;
+
+        using var reader = new StreamReader(csvStream);
+
+        // Skip header
+        var header = await reader.ReadLineAsync();
+        if (string.IsNullOrWhiteSpace(header))
+            return Result<ImportResult>.Failure("CSV file is empty");
+
+        while (!reader.EndOfStream)
+        {
+            lineNumber++;
+            var line = await reader.ReadLineAsync();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            try
+            {
+                var fields = line.Split(',');
+                if (fields.Length < 9)
+                {
+                    errors.Add($"Row {lineNumber}: expected 9 columns, got {fields.Length}");
+                    continue;
+                }
+
+                var product = new Product
+                {
+                    ProductName = fields[0].Trim(),
+                    CategoryId = string.IsNullOrWhiteSpace(fields[1]) ? null : int.Parse(fields[1].Trim()),
+                    SupplierId = string.IsNullOrWhiteSpace(fields[2]) ? null : int.Parse(fields[2].Trim()),
+                    QuantityPerUnit = string.IsNullOrWhiteSpace(fields[3]) ? null : fields[3].Trim(),
+                    UnitPrice = string.IsNullOrWhiteSpace(fields[4]) ? null : decimal.Parse(fields[4].Trim(), System.Globalization.CultureInfo.InvariantCulture),
+                    UnitsInStock = string.IsNullOrWhiteSpace(fields[5]) ? null : short.Parse(fields[5].Trim()),
+                    UnitsOnOrder = string.IsNullOrWhiteSpace(fields[6]) ? null : short.Parse(fields[6].Trim()),
+                    ReorderLevel = string.IsNullOrWhiteSpace(fields[7]) ? null : short.Parse(fields[7].Trim()),
+                    Discontinued = !string.IsNullOrWhiteSpace(fields[8]) && bool.Parse(fields[8].Trim()),
+                    CreatedAt = DateTime.UtcNow,
+                    IsDeleted = false
+                };
+
+                if (string.IsNullOrWhiteSpace(product.ProductName))
+                {
+                    errors.Add($"Row {lineNumber}: ProductName is required");
+                    continue;
+                }
+
+                products.Add(product);
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"Row {lineNumber}: {ex.Message}");
+            }
+        }
+
+        if (products.Count == 0)
+            return Result<ImportResult>.Failure("No valid products found in CSV");
+
+        _logger.LogInformation("Importing {Count} products from CSV", products.Count);
+        await _writeRepository.BulkInsertAsync(products);
+
+        sw.Stop();
+        _logger.LogInformation("CSV import completed: {Imported} products in {Elapsed}ms ({Failed} failed)",
+            products.Count, sw.ElapsedMilliseconds, errors.Count);
+
+        _cacheService.Remove("products_list");
+
+        return Result<ImportResult>.Success(new ImportResult
+        {
+            TotalRows = lineNumber,
+            Imported = products.Count,
+            Failed = errors.Count,
+            Errors = errors,
+            ElapsedMs = sw.ElapsedMilliseconds
+        });
+    }
+
     public async Task<Result<PagedResult<ProductResponse>>> GetAllAsync(ProductFilterParams filterParams)
     {
         if (filterParams.PageSize > 50) filterParams.PageSize = 50;

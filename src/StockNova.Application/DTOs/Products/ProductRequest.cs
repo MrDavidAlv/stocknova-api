@@ -32,6 +32,15 @@ public class BulkCreateRequest
     public int? CategoryId { get; set; }
 }
 
+public class ImportResult
+{
+    public int TotalRows { get; set; }
+    public int Imported { get; set; }
+    public int Failed { get; set; }
+    public List<string> Errors { get; set; } = new();
+    public long ElapsedMs { get; set; }
+}
+
 public class ProductFilterParams
 {
     public int Page { get; set; } = 1;

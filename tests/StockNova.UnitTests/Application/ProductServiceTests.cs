@@ -237,4 +237,83 @@ public class ProductServiceTests
         result.Value.Should().Be(100);
         _writeRepoMock.Verify(r => r.BulkInsertAsync(It.IsAny<IEnumerable<Product>>(), default), Times.Once);
     }
+
+    private static Stream CreateCsvStream(string content)
+    {
+        var stream = new MemoryStream();
+        var writer = new StreamWriter(stream);
+        writer.Write(content);
+        writer.Flush();
+        stream.Position = 0;
+        return stream;
+    }
+
+    [Fact]
+    public async Task ImportFromCsvAsync_WithValidCsv_ShouldImportProducts()
+    {
+        var csv = "ProductName,CategoryId,SupplierId,QuantityPerUnit,UnitPrice,UnitsInStock,UnitsOnOrder,ReorderLevel,Discontinued\n" +
+                  "Server Pro X1,1,2,1 unit,999.99,10,5,3,false\n" +
+                  "Switch Elite 200,3,4,1 unit,650.00,20,0,5,false\n";
+
+        using var stream = CreateCsvStream(csv);
+        var result = await _service.ImportFromCsvAsync(stream);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Imported.Should().Be(2);
+        result.Value.Failed.Should().Be(0);
+        result.Value.TotalRows.Should().Be(2);
+        _writeRepoMock.Verify(r => r.BulkInsertAsync(It.IsAny<IEnumerable<Product>>(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task ImportFromCsvAsync_WithEmptyFile_ShouldReturnFailure()
+    {
+        using var stream = CreateCsvStream("");
+        var result = await _service.ImportFromCsvAsync(stream);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("empty");
+    }
+
+    [Fact]
+    public async Task ImportFromCsvAsync_WithOnlyHeader_ShouldReturnFailure()
+    {
+        var csv = "ProductName,CategoryId,SupplierId,QuantityPerUnit,UnitPrice,UnitsInStock,UnitsOnOrder,ReorderLevel,Discontinued\n";
+
+        using var stream = CreateCsvStream(csv);
+        var result = await _service.ImportFromCsvAsync(stream);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("No valid products");
+    }
+
+    [Fact]
+    public async Task ImportFromCsvAsync_WithInvalidRows_ShouldReportErrors()
+    {
+        var csv = "ProductName,CategoryId,SupplierId,QuantityPerUnit,UnitPrice,UnitsInStock,UnitsOnOrder,ReorderLevel,Discontinued\n" +
+                  "Valid Product,1,2,1 unit,100.00,10,0,5,false\n" +
+                  "Bad Row,not_a_number\n" +
+                  ",1,2,1 unit,50.00,5,0,3,false\n";
+
+        using var stream = CreateCsvStream(csv);
+        var result = await _service.ImportFromCsvAsync(stream);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Imported.Should().Be(1);
+        result.Value.Failed.Should().Be(2);
+        result.Value.Errors.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task ImportFromCsvAsync_WithOptionalFieldsEmpty_ShouldImport()
+    {
+        var csv = "ProductName,CategoryId,SupplierId,QuantityPerUnit,UnitPrice,UnitsInStock,UnitsOnOrder,ReorderLevel,Discontinued\n" +
+                  "Minimal Product,,,,,,,, false\n";
+
+        using var stream = CreateCsvStream(csv);
+        var result = await _service.ImportFromCsvAsync(stream);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Imported.Should().Be(1);
+    }
 }

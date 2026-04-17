@@ -109,4 +109,27 @@ public class ProductsController : ControllerBase
 
         return Ok(ApiResponse<int>.Ok(result.Value, $"{result.Value} products created"));
     }
+
+    [HttpPost("import")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(ApiResponse<ImportResult>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ImportResult>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ImportCsv(IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(ApiResponse<ImportResult>.Fail("No file provided"));
+
+        if (!file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(ApiResponse<ImportResult>.Fail("Only CSV files are accepted"));
+
+        using var stream = file.OpenReadStream();
+        var result = await _productService.ImportFromCsvAsync(stream);
+        if (!result.IsSuccess)
+            return BadRequest(ApiResponse<ImportResult>.Fail(result.Error!));
+
+        await _auditService.LogAsync(User.GetUserId(), User.GetEmail(), "Product.Import",
+            "Product", message: $"CSV import: {result.Value!.Imported} imported, {result.Value.Failed} failed");
+
+        return Ok(ApiResponse<ImportResult>.Ok(result.Value!, $"{result.Value.Imported} products imported"));
+    }
 }
