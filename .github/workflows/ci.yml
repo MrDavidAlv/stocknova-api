@@ -1,12 +1,19 @@
-name: CI Pipeline
+name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
     branches: [main]
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
+  # ==========================================
+  # Job 1: Build & Test
+  # ==========================================
   build-and-test:
     runs-on: ubuntu-latest
 
@@ -34,58 +41,102 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Restore dependencies
+      - name: Restore
         run: dotnet restore
 
       - name: Build
         run: dotnet build --no-restore --configuration Release
 
-      - name: Run Unit Tests
-        run: dotnet test tests/StockNova.UnitTests --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage"
+      - name: Unit Tests
+        run: dotnet test tests/StockNova.UnitTests --no-build --configuration Release --verbosity normal
 
-      - name: Run Integration Tests
+      - name: Integration Tests
         run: dotnet test tests/StockNova.IntegrationTests --no-build --configuration Release --verbosity normal
-        env:
-          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=stocknova_test;Username=test;Password=test"
 
-      - name: Docker Build (validation)
-        run: docker build -t stocknova-api:ci .
+  # ==========================================
+  # Job 2: Build & Push Docker Image
+  # ==========================================
+  docker-push:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
 
-  # sonarqube:
-  #   runs-on: ubuntu-latest
-  #   needs: build-and-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
-  #       with:
-  #         fetch-depth: 0
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-  #     - name: Setup .NET 8
-  #       uses: actions/setup-dotnet@v4
-  #       with:
-  #         dotnet-version: 8.0.x
+      - name: Build and Push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-  #     - name: Install SonarScanner
-  #       run: dotnet tool install --global dotnet-sonarscanner
+  # ==========================================
+  # Job 3: Deploy to EC2
+  # ==========================================
+  deploy:
+    runs-on: ubuntu-latest
+    needs: docker-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
-  #     - name: Install Coverage Tool
-  #       run: dotnet tool install --global dotnet-coverage
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  #     - name: SonarQube Analysis
-  #       env:
-  #         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-  #         SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-  #       run: |
-  #         dotnet sonarscanner begin \
-  #           /o:"MrDavidAlv" \
-  #           /k:"MrDavidAlv_stocknova-api" \
-  #           /d:sonar.host.url="${SONAR_HOST_URL}" \
-  #           /d:sonar.token="${SONAR_TOKEN}" \
-  #           /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml \
-  #           /d:sonar.exclusions="**/Migrations/**,**/obj/**,**/bin/**"
+      - name: Copy files to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.prod.yml,deploy/nginx.conf,deploy/deploy.sh"
+          target: /opt/stocknova
 
-  #         dotnet build --no-incremental
-  #         dotnet-coverage collect "dotnet test --no-build" -f xml -o "coverage.xml"
+      - name: Create .env on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cat > /opt/stocknova/.env << 'ENVEOF'
+            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            ASPNETCORE_ENVIRONMENT=Production
+            JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+            JWT_ISSUER=${{ secrets.JWT_ISSUER }}
+            JWT_AUDIENCE=${{ secrets.JWT_AUDIENCE }}
+            JWT_ACCESS_TOKEN_MINUTES=60
+            JWT_REFRESH_TOKEN_DAYS=7
+            CORS_ORIGINS=${{ secrets.CORS_ORIGINS }}
+            ENVEOF
 
-  #         dotnet sonarscanner end /d:sonar.token="${SONAR_TOKEN}"
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /opt/stocknova
+            chmod +x deploy/deploy.sh
+
+            # Login to GitHub Container Registry
+            echo "${{ secrets.CR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # Run deploy
+            bash deploy/deploy.sh

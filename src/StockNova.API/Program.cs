@@ -60,11 +60,13 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 
 // CORS
+var corsOrigins = builder.Configuration["CORS_ORIGINS"]?.Split(',', StringSplitOptions.RemoveEmptyEntries)
+    ?? new[] { "http://localhost:5173", "http://localhost:3000" };
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://localhost:3000")
+        policy.WithOrigins(corsOrigins)
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials();
@@ -140,15 +142,12 @@ await DatabaseSeeder.SeedAsync(app.Services);
 // Middleware pipeline
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
-if (app.Environment.IsDevelopment())
+app.UseSwagger();
+app.UseSwaggerUI(options =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(options =>
-    {
-        options.SwaggerEndpoint("/swagger/v1/swagger.json", "StockNova API v1");
-        options.DocumentTitle = "StockNova API";
-    });
-}
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "StockNova API v1");
+    options.DocumentTitle = "StockNova API";
+});
 
 app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");

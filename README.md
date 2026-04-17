@@ -197,7 +197,10 @@ erDiagram
 | POST | `/` | Crear producto | Admin, Manager |
 | PUT | `/{id}` | Actualizar producto | Admin, Manager |
 | DELETE | `/{id}` | Eliminar producto (soft delete) | Admin |
-| POST | `/bulk` | Carga masiva (hasta 500K productos) | Admin |
+| POST | `/bulk` | Carga masiva aleatoria (hasta 500K) | Admin |
+| POST | `/import` | Importar productos desde CSV (IFormFile) | Admin |
+
+**Importacion CSV:** El archivo debe tener el formato del ejemplo en `samples/products_sample.csv`. Se sube como `multipart/form-data` (boton "Choose File" en Swagger).
 
 **Filtros disponibles en GET /products:**
 - `search` - Busqueda por nombre
