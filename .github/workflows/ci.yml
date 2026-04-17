@@ -79,7 +79,7 @@ jobs:
         run: |
           dotnet sonarscanner begin \
             /o:"MrDavidAlv" \
-            /k:"MrDavidAlv_stocknova-api" \ 
+            /k:"MrDavidAlv_stocknova-api" \
             /d:sonar.host.url="${SONAR_HOST_URL}" \
             /d:sonar.token="${SONAR_TOKEN}" \
             /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml \
