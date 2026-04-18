@@ -1,32 +1,31 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using StockNova.Domain.Entities;
 using StockNova.Domain.Enums;
-using StockNova.Domain.Interfaces.Services;
+using StockNova.Infrastructure.Configuration;
 
 namespace StockNova.Infrastructure.Data.Seeders;
 
 public static class UserSeeder
 {
-    // Default seed passwords — for development and testing only.
-    // In production, change these immediately after first deploy.
-    private const string DefaultAdminPassword = "Admin123!";
-    private const string DefaultManagerPassword = "Manager123!";
-    private const string DefaultViewerPassword = "Viewer123!";
-
-    public static async Task SeedAsync(ApplicationDbContext context, ILogger logger)
+    public static async Task SeedAsync(ApplicationDbContext context, ILogger logger, IConfiguration configuration)
     {
         if (await context.Users.AnyAsync())
         {
             return;
         }
 
+        var seedUserOptions = configuration.GetSection(SeedUserOptions.SectionName).Get<SeedUserOptions>()
+            ?? new SeedUserOptions();
+        var credentials = BuildSeedCredentials(seedUserOptions);
+
         var users = new List<User>
         {
             new()
             {
                 Email = "admin@stocknova.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(DefaultAdminPassword),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(credentials.Admin),
                 FullName = "Admin StockNova",
                 Role = UserRole.Admin,
                 IsActive = true
@@ -34,7 +33,7 @@ public static class UserSeeder
             new()
             {
                 Email = "manager@stocknova.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(DefaultManagerPassword),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(credentials.Manager),
                 FullName = "Manager StockNova",
                 Role = UserRole.Manager,
                 IsActive = true
@@ -42,7 +41,7 @@ public static class UserSeeder
             new()
             {
                 Email = "viewer@stocknova.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(DefaultViewerPassword),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(credentials.Viewer),
                 FullName = "Viewer StockNova",
                 Role = UserRole.Viewer,
                 IsActive = true
@@ -53,6 +52,22 @@ public static class UserSeeder
         await context.SaveChangesAsync();
 
         logger.LogInformation("Seeded {Count} default users", users.Count);
-        logger.LogWarning("Default seed users created with default passwords. Change them in production");
+        logger.LogInformation("Seed user credentials were loaded from configuration");
+    }
+
+    private static (string Admin, string Manager, string Viewer) BuildSeedCredentials(SeedUserOptions options)
+    {
+        return (
+            ResolveSeedSecret(options.Admin),
+            ResolveSeedSecret(options.Manager),
+            ResolveSeedSecret(options.Viewer)
+        );
+    }
+
+    private static string ResolveSeedSecret(string? configuredValue)
+    {
+        return !string.IsNullOrWhiteSpace(configuredValue)
+            ? configuredValue
+            : Convert.ToBase64String(Guid.NewGuid().ToByteArray());
     }
 }

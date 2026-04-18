@@ -12,6 +12,7 @@ namespace StockNova.Application.Services;
 
 public class ProductService : IProductService
 {
+    private const int MaxBulkCreateCount = 500000;
     private readonly IProductReadRepository _readRepository;
     private readonly IProductWriteRepository _writeRepository;
     private readonly ICategoryRepository _categoryRepository;
@@ -62,10 +63,12 @@ public class ProductService : IProductService
 
     public async Task<Result<int>> BulkCreateAsync(BulkCreateRequest request)
     {
-        if (request.Count <= 0 || request.Count > 500000)
+        if (request.Count <= 0 || request.Count > MaxBulkCreateCount)
         {
-            return Result<int>.Failure("Count must be between 1 and 500,000");
+            return Result<int>.Failure($"Count must be between 1 and {MaxBulkCreateCount:N0}");
         }
+
+        var safeCount = GetSafeBulkCreateCount(request.Count);
 
         var categories = await _categoryRepository.GetAllAsync();
         if (!categories.Any())
@@ -81,10 +84,11 @@ public class ProductService : IProductService
         var productNames = new[] { "Server", "Switch", "Router", "Firewall", "Storage", "Module", "Controller", "Adapter", "Cable", "Rack" };
         var brands = new[] { "Pro", "Elite", "Max", "Ultra", "Prime", "Core", "Edge", "Flex", "Nova", "Apex" };
 
-        var products = Enumerable.Range(1, request.Count).Select(i =>
+        var products = new List<Product>(safeCount);
+        for (var i = 0; i < safeCount; i++)
         {
             var name = $"{productNames[random.Next(productNames.Length)]} {brands[random.Next(brands.Length)]} {random.Next(100, 9999)}";
-            return new Product
+            products.Add(new Product
             {
                 ProductName = name,
                 CategoryId = categoryIds[random.Next(categoryIds.Length)],
@@ -96,19 +100,19 @@ public class ProductService : IProductService
                 Discontinued = false,
                 CreatedAt = DateTime.UtcNow,
                 IsDeleted = false
-            };
-        }).ToList();
+            });
+        }
 
-        _logger.LogInformation("Starting bulk insert of {Count} products", request.Count);
+        _logger.LogInformation("Starting bulk insert of {Count} products", safeCount);
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
         await _writeRepository.BulkInsertAsync(products);
 
         sw.Stop();
-        _logger.LogInformation("Bulk insert completed: {Count} products in {Elapsed}ms", request.Count, sw.ElapsedMilliseconds);
+        _logger.LogInformation("Bulk insert completed: {Count} products in {Elapsed}ms", safeCount, sw.ElapsedMilliseconds);
 
         _cacheService.Remove("products_list");
-        return Result<int>.Success(request.Count);
+        return Result<int>.Success(safeCount);
     }
 
     public async Task<Result<ImportResult>> ImportFromCsvAsync(Stream csvStream)
@@ -299,5 +303,10 @@ public class ProductService : IProductService
         _logger.LogInformation("Product soft-deleted: {ProductId}", id);
 
         return Result.Success();
+    }
+
+    private static int GetSafeBulkCreateCount(int requestedCount)
+    {
+        return Math.Clamp(requestedCount, 1, MaxBulkCreateCount);
     }
 }

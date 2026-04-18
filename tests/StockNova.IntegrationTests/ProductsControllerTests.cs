@@ -13,17 +13,18 @@ namespace StockNova.IntegrationTests;
 public class ProductsControllerTests : IClassFixture<IntegrationTestFixture>
 {
     private readonly HttpClient _client;
+    private readonly IntegrationTestFixture _fixture;
 
     public ProductsControllerTests(IntegrationTestFixture fixture)
     {
+        _fixture = fixture;
         _client = fixture.CreateClient();
     }
 
     private async Task<string> GetAdminTokenAsync()
     {
-        // The seeder creates admin@stocknova.com / Admin123!
         var response = await _client.PostAsJsonAsync("/api/v1/auth/login",
-            new LoginRequest { Email = "admin@stocknova.com", Password = "Admin123!" });
+            new LoginRequest { Email = "admin@stocknova.com", Password = _fixture.AdminSeedSecret });
         var body = await response.Content.ReadFromJsonAsync<ApiResponse<AuthResponse>>();
         return body!.Data!.AccessToken;
     }

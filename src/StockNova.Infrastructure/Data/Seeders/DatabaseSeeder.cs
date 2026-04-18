@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -11,6 +12,7 @@ public static class DatabaseSeeder
         using var scope = serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<ApplicationDbContext>>();
+        var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
 
         try
         {
@@ -20,7 +22,7 @@ public static class DatabaseSeeder
             await CategorySeeder.SeedAsync(context, logger);
             await SupplierSeeder.SeedAsync(context, logger);
             await ShipperSeeder.SeedAsync(context, logger);
-            await UserSeeder.SeedAsync(context, logger);
+            await UserSeeder.SeedAsync(context, logger, configuration);
 
             logger.LogInformation("Database seeding completed successfully");
         }

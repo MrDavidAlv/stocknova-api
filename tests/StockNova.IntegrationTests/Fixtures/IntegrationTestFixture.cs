@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Testcontainers.PostgreSql;
 using StockNova.Infrastructure.Data;
@@ -9,6 +10,8 @@ namespace StockNova.IntegrationTests.Fixtures;
 
 public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLifetime
 {
+    public string AdminSeedSecret { get; } = $"admin-seed-{Guid.NewGuid():N}";
+
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
         .WithImage("postgres:14")
         .WithDatabase("stocknova_test")
@@ -18,6 +21,16 @@ public class IntegrationTestFixture : WebApplicationFactory<Program>, IAsyncLife
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        builder.ConfigureAppConfiguration((_, configBuilder) =>
+        {
+            configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SeedUsers:Admin"] = AdminSeedSecret,
+                ["SeedUsers:Manager"] = $"manager-seed-{Guid.NewGuid():N}",
+                ["SeedUsers:Viewer"] = $"viewer-seed-{Guid.NewGuid():N}"
+            });
+        });
+
         builder.ConfigureServices(services =>
         {
             // Remove the existing DbContext registration

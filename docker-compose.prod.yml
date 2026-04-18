@@ -22,11 +22,15 @@ services:
       - "8080"
     environment:
       ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
       JwtSettings__SecretKey: ${JWT_SECRET_KEY}
       JwtSettings__Issuer: ${JWT_ISSUER}
       JwtSettings__Audience: ${JWT_AUDIENCE}
       JwtSettings__AccessTokenExpirationMinutes: ${JWT_ACCESS_TOKEN_MINUTES}
       JwtSettings__RefreshTokenExpirationDays: ${JWT_REFRESH_TOKEN_DAYS}
+      SeedUsers__Admin: ${SEED_USERS__ADMIN}
+      SeedUsers__Manager: ${SEED_USERS__MANAGER}
+      SeedUsers__Viewer: ${SEED_USERS__VIEWER}
       ASPNETCORE_ENVIRONMENT: Production
       CORS_ORIGINS: ${CORS_ORIGINS}
     depends_on:

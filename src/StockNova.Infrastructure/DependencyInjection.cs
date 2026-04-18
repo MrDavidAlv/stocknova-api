@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using StockNova.Application.Configuration;
 using StockNova.Application.Interfaces;
 using StockNova.Domain.Interfaces.Repositories;
 using StockNova.Domain.Interfaces.Services;
 using StockNova.Infrastructure.Caching;
+using StockNova.Infrastructure.Configuration;
 using StockNova.Infrastructure.Data;
 using StockNova.Infrastructure.Repositories;
 using StockNova.Infrastructure.Security;
@@ -17,9 +19,10 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         // Database
+        var connectionString = ResolveConnectionString(configuration);
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseNpgsql(
-                configuration.GetConnectionString("DefaultConnection"),
+                connectionString,
                 npgsqlOptions =>
                 {
                     npgsqlOptions.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName);
@@ -43,5 +46,33 @@ public static class DependencyInjection
         services.AddSingleton<ICacheService, MemoryCacheService>();
 
         return services;
+    }
+
+    private static string ResolveConnectionString(IConfiguration configuration)
+    {
+        var configuredConnectionString = configuration.GetConnectionString("DefaultConnection");
+        if (!string.IsNullOrWhiteSpace(configuredConnectionString))
+        {
+            return configuredConnectionString;
+        }
+
+        var databaseOptions = configuration.GetSection(DatabaseOptions.SectionName).Get<DatabaseOptions>()
+            ?? new DatabaseOptions();
+        var databaseSecret = configuration["DB_PASSWORD"];
+
+        var connectionStringBuilder = new NpgsqlConnectionStringBuilder
+        {
+            Host = databaseOptions.Host,
+            Port = databaseOptions.Port,
+            Database = databaseOptions.Name,
+            Username = databaseOptions.Username
+        };
+
+        if (!string.IsNullOrWhiteSpace(databaseSecret))
+        {
+            connectionStringBuilder.Password = databaseSecret;
+        }
+
+        return connectionStringBuilder.ConnectionString;
     }
 }
