@@ -34,6 +34,13 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  web:
+    image: ghcr.io/mrdavidalv/stocknova-web:latest
+    container_name: stocknova-web
+    expose:
+      - "80"
+    restart: unless-stopped
+
   nginx:
     image: nginx:alpine
     container_name: stocknova-nginx
@@ -43,6 +50,7 @@ services:
       - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - api
+      - web
     restart: unless-stopped
 
 volumes:
