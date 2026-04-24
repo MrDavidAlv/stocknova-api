@@ -201,6 +201,7 @@ public class ProductService : IProductService
         if (filterParams.Page < 1) filterParams.Page = 1;
 
         var spec = new ProductFilterSpecification(
+            filterParams.ProductId,
             filterParams.Search,
             filterParams.CategoryId,
             filterParams.SupplierId,
@@ -213,6 +214,7 @@ public class ProductService : IProductService
             filterParams.SortOrder);
 
         var countSpec = new ProductFilterSpecification(
+            filterParams.ProductId,
             filterParams.Search,
             filterParams.CategoryId,
             filterParams.SupplierId,

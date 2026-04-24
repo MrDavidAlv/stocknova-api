@@ -43,6 +43,7 @@ public class ImportResult
 
 public class ProductFilterParams
 {
+    public int? ProductId { get; set; }
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 10;
     public string? Search { get; set; }

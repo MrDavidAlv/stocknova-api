@@ -5,6 +5,7 @@ namespace StockNova.Domain.Specifications;
 public class ProductFilterSpecification : BaseSpecification<Product>
 {
     public ProductFilterSpecification(
+        int? ProductId = null,
         string? search = null,
         int? categoryId = null,
         int? supplierId = null,
@@ -18,6 +19,7 @@ public class ProductFilterSpecification : BaseSpecification<Product>
         : base(p =>
             !p.IsDeleted &&
             (string.IsNullOrEmpty(search) || p.ProductName.ToLower().Contains(search.ToLower())) &&
+            (!ProductId.HasValue || p.ProductId == ProductId) &&
             (!categoryId.HasValue || p.CategoryId == categoryId) &&
             (!supplierId.HasValue || p.SupplierId == supplierId) &&
             (!minPrice.HasValue || p.UnitPrice >= minPrice) &&
